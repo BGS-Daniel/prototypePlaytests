@@ -59,7 +59,7 @@
     <!-- Network + voice layer. Must load before the Unity loader: TTNet.jslib calls window.TT.
          The build script copies Assets/_Project/Web~/*.js into <build>/tt/. -->
     <script src="tt/trystero-nostr-0.26.0.min.js"></script>
-    <script src="tt/tt-net.js"></script>
+    <script src="tt/tt-net.js?v=0.1.1116.2210"></script>
 
     <script>
       var canvas = document.querySelector("#unity-canvas");
@@ -132,12 +132,13 @@
       });
 
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/turf-trade-web.loader.js";
+      var cacheBust = "?v=" + encodeURIComponent("0.1.1116.2210");   // GitHub Pages caches for 10 minutes
+      var loaderUrl = buildUrl + "/turf-trade-web.loader.js" + cacheBust;
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/turf-trade-web.data",
-        frameworkUrl: buildUrl + "/turf-trade-web.framework.js",
-        codeUrl: buildUrl + "/turf-trade-web.wasm",
+        dataUrl: buildUrl + "/turf-trade-web.data" + cacheBust,
+        frameworkUrl: buildUrl + "/turf-trade-web.framework.js" + cacheBust,
+        codeUrl: buildUrl + "/turf-trade-web.wasm" + cacheBust,
         streamingAssetsUrl: "StreamingAssets",
 
         // The element shown in fullscreen when Unity itself asks for it (Screen.fullScreen).
@@ -146,7 +147,7 @@
 
         companyName: "Gravity",
         productName: "Turf Trade",
-        productVersion: "0.1.1116.2156",
+        productVersion: "0.1.1116.2210",
         showBanner: unityShowBanner,
       };
 
