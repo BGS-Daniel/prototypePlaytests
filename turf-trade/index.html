@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en-us">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>Turf Trade (grey-box)</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #101216; }
+      body { font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #e6e8eb; }
+      #unity-container { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: #101216; }
+      #unity-canvas { display: block; width: 100%; height: 100%; background: #1F1F20; outline: none; }
+
+      #tt-overlay { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 30; background: #101216;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #tt-overlay.tt-hidden { display: none; }
+      #tt-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+      #tt-subtitle { margin-top: 6px; font-size: 14px; color: #8a919c; }
+      #tt-bar { margin-top: 34px; width: 280px; max-width: 70%; height: 8px; border-radius: 4px; background: #262a31; overflow: hidden; }
+      #tt-bar-fill { width: 0%; height: 100%; background: #d9a441; transition: width 0.15s linear; }
+      #tt-play { margin-top: 26px; min-width: 220px; padding: 14px 30px; font: inherit; font-size: 19px; font-weight: 600;
+                 color: #101216; background: #d9a441; border: 0; border-radius: 6px; cursor: pointer; }
+      #tt-play:hover { background: #ebb654; }
+      #tt-play:disabled { color: #8a919c; background: #262a31; cursor: default; }
+      #tt-hint { margin-top: 14px; font-size: 13px; color: #8a919c; }
+
+      #tt-fullscreen { position: fixed; top: 8px; right: 8px; z-index: 20; width: 34px; height: 34px; padding: 0;
+                       display: flex; align-items: center; justify-content: center; color: #e6e8eb; background: rgba(16, 18, 22, 0.55);
+                       border: 1px solid rgba(230, 232, 235, 0.35); border-radius: 5px; cursor: pointer; opacity: 0.6; }
+      #tt-fullscreen:hover { opacity: 1; }
+
+      #unity-warning { position: fixed; left: 50%; top: 12px; transform: translate(-50%); z-index: 40; display: none;
+                       max-width: 90%; font-size: 14px; color: #101216; background: #ffffff; border-radius: 4px; overflow: hidden; }
+    </style>
+  </head>
+  <body>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <button id="tt-fullscreen" type="button" title="Fullscreen" aria-label="Fullscreen">
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+        </svg>
+      </button>
+    </div>
+
+    <div id="tt-overlay">
+      <div id="tt-title">TURF TRADE</div>
+      <div id="tt-subtitle">grey-box prototype</div>
+      <div id="tt-bar"><div id="tt-bar-fill"></div></div>
+      <button id="tt-play" type="button" disabled>Loading&hellip;</button>
+      <div id="tt-hint">Uses your microphone for proximity voice. Headphones recommended.</div>
+    </div>
+
+    <div id="unity-warning"> </div>
+
+    <!-- The default template's diagnostics overlay and development-build profiler button are left out on
+         purpose: Unity copies their files into a TemplateData folder, and this template does not have one. -->
+
+    <!-- Network + voice layer. Must load before the Unity loader: TTNet.jslib calls window.TT.
+         The build script copies Assets/_Project/Web~/*.js into <build>/tt/. -->
+    <script src="tt/trystero-nostr-0.26.0.min.js"></script>
+    <script src="tt/tt-net.js"></script>
+
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var overlay = document.querySelector("#tt-overlay");
+      var playButton = document.querySelector("#tt-play");
+      var barFill = document.querySelector("#tt-bar-fill");
+      var autostart = new URLSearchParams(window.location.search).get("autostart") === "1";
+
+      // Shows a temporary message banner/ribbon for a few seconds, or
+      // a permanent error message on top of the canvas if type=='error'.
+      // If type=='warning', a yellow highlight color is used.
+      function unityShowBanner(msg, type) {
+        var warningBanner = document.querySelector("#unity-warning");
+        function updateBannerVisibility() {
+          warningBanner.style.display = warningBanner.children.length ? 'block' : 'none';
+        }
+        var div = document.createElement('div');
+        div.innerHTML = msg;
+        warningBanner.appendChild(div);
+        if (type == 'error') div.style = 'background: #d23a3a; color: #ffffff; padding: 10px;';
+        else {
+          if (type == 'warning') div.style = 'background: #f2d24b; padding: 10px;';
+          else div.style = 'padding: 10px;';
+          setTimeout(function() {
+            warningBanner.removeChild(div);
+            updateBannerVisibility();
+          }, 5000);
+        }
+        updateBannerVisibility();
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      // A loader failure must be visible, not a silent grey page.
+      function showFatal(msg) {
+        unityShowBanner(escapeHtml(msg), 'error');
+        playButton.disabled = true;
+        playButton.textContent = "Failed to load";
+      }
+
+      if (!window.TT) {
+        unityShowBanner("Network layer did not load (tt/tt-net.js). Multiplayer and voice are off.", 'error');
+      }
+
+      // Leaves the "Click to play" overlay. Called from a real click (so the browser unlocks audio,
+      // the microphone prompt and pointer lock), or straight away with ?autostart=1 for automated tests.
+      var started = false;
+      function startPlaying() {
+        if (started) return;
+        started = true;
+        overlay.className = "tt-hidden";
+        if (window.TT) window.TT.unlockAudio();
+        canvas.focus();
+      }
+
+      playButton.addEventListener("click", function () {
+        if (!playButton.disabled) startPlaying();
+      });
+
+      var fullscreenButton = document.querySelector("#tt-fullscreen");
+      // keep keyboard focus on the canvas when the button is pressed
+      fullscreenButton.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      fullscreenButton.addEventListener("click", function () {
+        if (window.TT) window.TT.fullscreen();
+        canvas.focus();
+      });
+
+      var buildUrl = "Build";
+      var loaderUrl = buildUrl + "/turf-trade-web.loader.js";
+      var config = {
+        arguments: [],
+        dataUrl: buildUrl + "/turf-trade-web.data",
+        frameworkUrl: buildUrl + "/turf-trade-web.framework.js",
+        codeUrl: buildUrl + "/turf-trade-web.wasm",
+        streamingAssetsUrl: "StreamingAssets",
+
+        // The element shown in fullscreen when Unity itself asks for it (Screen.fullScreen).
+        // The HTML fullscreen button uses TT.fullscreen(), which toggles the whole page.
+        fullscreenElementID: "unity-container",
+
+        companyName: "Gravity",
+        productName: "Turf Trade",
+        productVersion: "0.1.1116.2156",
+        showBanner: unityShowBanner,
+      };
+
+      // config.matchWebGLToCanvasSize is left at its default (true): Unity keeps the WebGL render target
+      // matched to the canvas element's CSS size (times devicePixelRatio). The canvas is 100% x 100% of the
+      // window with no fixed size, so the game resizes with the browser window.
+
+
+      var script = document.createElement("script");
+      script.src = loaderUrl;
+      script.onerror = function () {
+        showFatal("Could not load the Unity loader (" + loaderUrl + ").");
+      };
+      script.onload = () => {
+        if (typeof createUnityInstance !== "function") {
+          showFatal("The Unity loader did not define createUnityInstance.");
+          return;
+        }
+        createUnityInstance(canvas, config, (progress) => {
+          barFill.style.width = Math.round(100 * progress) + "%";
+          if (progress < 1) playButton.textContent = "Loading… " + Math.round(100 * progress) + "%";
+        }).then((unityInstance) => {
+          window.unityInstance = unityInstance;
+          barFill.style.width = "100%";
+          playButton.disabled = false;
+          playButton.textContent = "Click to play";
+          if (autostart) startPlaying();
+          else playButton.focus();
+        }).catch((message) => {
+          showFatal(message);
+        });
+      };
+
+      if (autostart) overlay.className = "tt-hidden";
+      document.body.appendChild(script);
+    </script>
+  </body>
+</html>
