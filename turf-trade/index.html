@@ -4,7 +4,7 @@
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
-    <title>Turf Trade (grey-box)</title>
+    <title>Turf Trade</title>
     <style>
       html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #101216; }
       body { font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #e6e8eb; }
@@ -45,7 +45,7 @@
 
     <div id="tt-overlay">
       <div id="tt-title">TURF TRADE</div>
-      <div id="tt-subtitle">grey-box prototype</div>
+      <div id="tt-subtitle">noir prototype</div>
       <div id="tt-bar"><div id="tt-bar-fill"></div></div>
       <button id="tt-play" type="button" disabled>Loading&hellip;</button>
       <div id="tt-hint">Uses your microphone for proximity voice. Headphones recommended.</div>
@@ -59,7 +59,7 @@
     <!-- Network + voice layer. Must load before the Unity loader: TTNet.jslib calls window.TT.
          The build script copies Assets/_Project/Web~/*.js into <build>/tt/. -->
     <script src="tt/trystero-nostr-0.26.0.min.js"></script>
-    <script src="tt/tt-net.js?v=0.1.1116.2324"></script>
+    <script src="tt/tt-net.js?v=0.1.1116.2333"></script>
 
     <script>
       var canvas = document.querySelector("#unity-canvas");
@@ -132,7 +132,7 @@
       });
 
       var buildUrl = "Build";
-      var cacheBust = "?v=" + encodeURIComponent("0.1.1116.2324");   // GitHub Pages caches for 10 minutes
+      var cacheBust = "?v=" + encodeURIComponent("0.1.1116.2333");   // GitHub Pages caches for 10 minutes
       var loaderUrl = buildUrl + "/turf-trade-web.loader.js" + cacheBust;
       var config = {
         arguments: [],
@@ -147,7 +147,7 @@
 
         companyName: "Gravity",
         productName: "Turf Trade",
-        productVersion: "0.1.1116.2324",
+        productVersion: "0.1.1116.2333",
         showBanner: unityShowBanner,
       };
 
