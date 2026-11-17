@@ -3,40 +3,85 @@
   <head>
     <meta charset="utf-8">
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
-    <title>Unity Web Player | Bomb Shelter</title>
-    <link rel="shortcut icon" href="TemplateData/favicon.ico">
-    <link rel="stylesheet" href="TemplateData/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes">
+    <title>Bomb Shelter (prototype)</title>
+    <style>
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; background: #101216; }
+      body { font-family: system-ui, "Segoe UI", Arial, sans-serif; color: #e6e8eb; }
+      #unity-container { position: fixed; left: 0; top: 0; width: 100%; height: 100%; background: #101216; }
+      #unity-canvas { display: block; width: 100%; height: 100%; background: #1F1F20; outline: none; }
+
+      #tt-overlay { position: fixed; left: 0; top: 0; width: 100%; height: 100%; z-index: 30; background: #101216;
+                    display: flex; flex-direction: column; align-items: center; justify-content: center; }
+      #tt-overlay.tt-hidden { display: none; }
+      #tt-title { font-size: 34px; font-weight: 700; letter-spacing: 1px; }
+      #tt-subtitle { margin-top: 6px; font-size: 14px; color: #8a919c; }
+      #tt-bar { margin-top: 34px; width: 280px; max-width: 70%; height: 8px; border-radius: 4px; background: #262a31; overflow: hidden; }
+      #tt-bar-fill { width: 0%; height: 100%; background: #e8553a; transition: width 0.15s linear; }
+      #tt-play { margin-top: 26px; min-width: 220px; padding: 14px 30px; font: inherit; font-size: 19px; font-weight: 600;
+                 color: #101216; background: #e8553a; border: 0; border-radius: 6px; cursor: pointer; }
+      #tt-play:hover { background: #f06c50; }
+      #tt-play:disabled { color: #8a919c; background: #262a31; cursor: default; }
+      #tt-hint { margin-top: 14px; font-size: 13px; color: #8a919c; }
+
+      #tt-fullscreen { position: fixed; top: 8px; right: 8px; z-index: 20; width: 34px; height: 34px; padding: 0;
+                       display: flex; align-items: center; justify-content: center; color: #e6e8eb; background: rgba(16, 18, 22, 0.55);
+                       border: 1px solid rgba(230, 232, 235, 0.35); border-radius: 5px; cursor: pointer; opacity: 0.6; }
+      #tt-fullscreen:hover { opacity: 1; }
+
+      #unity-warning { position: fixed; left: 50%; top: 12px; transform: translate(-50%); z-index: 40; display: none;
+                       max-width: 90%; font-size: 14px; color: #101216; background: #ffffff; border-radius: 4px; overflow: hidden; }
+    </style>
   </head>
   <body>
-    <div id="unity-container" class="unity-desktop">
-      <div id="unity-fullscreen-container">
-        <canvas id="unity-canvas" width="960" height="600" tabindex="-1"></canvas>
-        <div id="unity-loading-container">
-          <div id="unity-loading-bar">
-            <div id="unity-logo"></div>
-            <div id="unity-progress-bar-empty">
-              <div id="unity-progress-bar-full"></div>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div id="unity-warning"> </div>
-      <div id="unity-footer">
-        <div id="unity-logo-title-footer"></div>
-        <div id="unity-fullscreen-button"></div>
-        <div id="unity-build-title">Bomb Shelter</div>
-      </div>
+    <div id="unity-container">
+      <canvas id="unity-canvas" tabindex="-1"></canvas>
+      <button id="tt-fullscreen" type="button" title="Fullscreen" aria-label="Fullscreen">
+        <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true">
+          <path d="M2 6V2h4M10 2h4v4M14 10v4h-4M6 14H2v-4"/>
+        </svg>
+      </button>
     </div>
+
+    <div id="tt-overlay">
+      <div id="tt-title">BOMB SHELTER</div>
+      <div id="tt-subtitle">co-op prototype &middot; 1&ndash;4 players</div>
+      <div id="tt-bar"><div id="tt-bar-fill"></div></div>
+      <button id="tt-play" type="button" disabled>Loading&hellip;</button>
+      <div id="tt-hint">Mouse and keyboard. Click the game to capture the mouse; Esc releases it.</div>
+    </div>
+
+    <div id="unity-warning"> </div>
+
+    <!-- The default template's diagnostics overlay and development-build profiler button are left out on
+         purpose: Unity copies their files into a TemplateData folder, and this template does not have one. -->
+
     <script>
-      let canvas = document.querySelector("#unity-canvas");
-      let fullscreenContainer = document.querySelector("#unity-fullscreen-container");
+      // Browsers reject pointer lock now and then (Esc pressed during the request, an embedded browser, a lost
+      // focus). Unity treats that as a fatal error and shows a banner; it is harmless, so swallow it here.
+      window.addEventListener("unhandledrejection", function (e) {
+        var r = e.reason, s = String((r && (r.name + " " + r.message)) || r || "");
+        if (/pointer ?lock|WrongDocumentError/i.test(s)) { e.preventDefault(); e.stopImmediatePropagation(); }
+      }, true);
+      window.addEventListener("error", function (e) {
+        if (/pointer ?lock|WrongDocumentError/i.test(String(e.message || ""))) { e.preventDefault(); e.stopImmediatePropagation(); }
+      }, true);
+    </script>
+    <!-- Network layer. Must load before the Unity loader: TTNet.jslib calls window.TT.
+         The build script copies Assets/_Project/Web~/*.js into <build>/tt/. -->
+    <script src="tt/trystero-nostr-0.26.0.min.js"></script>
+    <script src="tt/tt-net.js?v=0.1.1117.1159"></script>
+
+    <script>
+      var canvas = document.querySelector("#unity-canvas");
+      var overlay = document.querySelector("#tt-overlay");
+      var playButton = document.querySelector("#tt-play");
+      var barFill = document.querySelector("#tt-bar-fill");
+      var autostart = new URLSearchParams(window.location.search).get("autostart") === "1";
 
       // Shows a temporary message banner/ribbon for a few seconds, or
       // a permanent error message on top of the canvas if type=='error'.
       // If type=='warning', a yellow highlight color is used.
-      // Modify or remove this function to customize the visually presented
-      // way that non-critical warnings and error messages are presented to the
-      // user.
       function unityShowBanner(msg, type) {
         var warningBanner = document.querySelector("#unity-warning");
         function updateBannerVisibility() {
@@ -45,9 +90,10 @@
         var div = document.createElement('div');
         div.innerHTML = msg;
         warningBanner.appendChild(div);
-        if (type == 'error') div.style = 'background: red; padding: 10px;';
+        if (type == 'error') div.style = 'background: #d23a3a; color: #ffffff; padding: 10px;';
         else {
-          if (type == 'warning') div.style = 'background: yellow; padding: 10px;';
+          if (type == 'warning') div.style = 'background: #f2d24b; padding: 10px;';
+          else div.style = 'padding: 10px;';
           setTimeout(function() {
             warningBanner.removeChild(div);
             updateBannerVisibility();
@@ -56,95 +102,98 @@
         updateBannerVisibility();
       }
 
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+      }
+
+      // A loader failure must be visible, not a silent grey page.
+      function showFatal(msg) {
+        unityShowBanner(escapeHtml(msg), 'error');
+        playButton.disabled = true;
+        playButton.textContent = "Failed to load";
+      }
+
+      if (!window.TT) {
+        unityShowBanner("Network layer did not load (tt/tt-net.js). Multiplayer and voice are off.", 'error');
+      }
+
+      // Leaves the "Click to play" overlay. Called from a real click (so the browser unlocks audio,
+      // the microphone prompt and pointer lock), or straight away with ?autostart=1 for automated tests.
+      var started = false;
+      function startPlaying() {
+        if (started) return;
+        started = true;
+        overlay.className = "tt-hidden";
+        if (window.TT) window.TT.unlockAudio();
+        canvas.focus();
+      }
+
+      playButton.addEventListener("click", function () {
+        if (!playButton.disabled) startPlaying();
+      });
+
+      var fullscreenButton = document.querySelector("#tt-fullscreen");
+      // keep keyboard focus on the canvas when the button is pressed
+      fullscreenButton.addEventListener("mousedown", function (e) { e.preventDefault(); });
+      fullscreenButton.addEventListener("click", function () {
+        if (window.TT) window.TT.fullscreen();
+        canvas.focus();
+      });
+
       var buildUrl = "Build";
-      var loaderUrl = buildUrl + "/bomb-shelter-web.loader.js";
+      var cacheBust = "?v=" + encodeURIComponent("0.1.1117.1159");   // GitHub Pages caches for 10 minutes
+      var loaderUrl = buildUrl + "/bomb-shelter-web.loader.js" + cacheBust;
       var config = {
         arguments: [],
-        dataUrl: buildUrl + "/bomb-shelter-web.data",
-        frameworkUrl: buildUrl + "/bomb-shelter-web.framework.js",
-        codeUrl: buildUrl + "/bomb-shelter-web.wasm",
+        dataUrl: buildUrl + "/bomb-shelter-web.data" + cacheBust,
+        frameworkUrl: buildUrl + "/bomb-shelter-web.framework.js" + cacheBust,
+        codeUrl: buildUrl + "/bomb-shelter-web.wasm" + cacheBust,
         streamingAssetsUrl: "StreamingAssets",
 
-        // If you have a custom web site structure, or want to place multiple Unity build instances on the same page,
-        // you can pass fullscreenElementID: "my-unity-fullscreen-container-id", in this configuration field to
-        // explicitly point to the element tree root that is displayed in fullscreen mode.
-        fullscreenElementID: "unity-fullscreen-container",
+        // The element shown in fullscreen when Unity itself asks for it (Screen.fullScreen).
+        // The HTML fullscreen button uses TT.fullscreen(), which toggles the whole page.
+        fullscreenElementID: "unity-container",
 
         companyName: "Gravity",
         productName: "Bomb Shelter",
-        productVersion: "0.1.1117.1104",
+        productVersion: "0.1.1117.1159",
         showBanner: unityShowBanner,
-        // errorHandler: function(err, url, line) {
-        //    alert("error " + err + " occurred at line " + line);
-        //    // Return 'true' if you handled this error and don't want Unity
-        //    // to process it further, 'false' otherwise.
-        //    return true;
-        // },
       };
 
-      // By default, Unity keeps WebGL canvas render target size matched with
-      // the DOM size of the canvas element (scaled by window.devicePixelRatio)
-      // Set this to false if you want to decouple this synchronization from
-      // happening inside the engine, and you would instead like to size up
-      // the canvas DOM size and WebGL render target sizes yourself.
-      // config.matchWebGLToCanvasSize = false;
-
-      // If you would like all file writes inside Unity Application.persistentDataPath
-      // directory to automatically persist so that the contents are remembered when
-      // the user revisits the site the next time, uncomment the following line:
-      // config.autoSyncPersistentDataPath = true;
-      // This autosyncing is currently not the default behavior to avoid regressing
-      // existing user projects that might rely on the earlier manual
-      // JS_FileSystem_Sync() behavior, but in future Unity version, this will be
-      // expected to change.
-
-      if (/iPhone|iPad|iPod|Android/i.test(navigator.userAgent)) {
-        // Mobile device style: fill the whole browser client area with the game canvas:
-
-        var meta = document.createElement('meta');
-        meta.name = 'viewport';
-        meta.content = 'width=device-width, height=device-height, initial-scale=1.0, user-scalable=no, shrink-to-fit=yes';
-        document.getElementsByTagName('head')[0].appendChild(meta);
-        document.querySelector("#unity-container").className = "unity-mobile";
-        canvas.className = "unity-mobile";
-
-        // To lower canvas resolution on mobile devices to gain some
-        // performance, uncomment the following line:
-        // config.devicePixelRatio = 1;
-
-
-      } else {
-        // Desktop style: Render the game canvas container in a window that can be maximized to fullscreen:
-        fullscreenContainer.style.width = "960px";
-        fullscreenContainer.style.height = "600px";
-      }
+      // config.matchWebGLToCanvasSize is left at its default (true): Unity keeps the WebGL render target
+      // matched to the canvas element's CSS size (times devicePixelRatio). The canvas is 100% x 100% of the
+      // window with no fixed size, so the game resizes with the browser window.
 
 
       var script = document.createElement("script");
       script.src = loaderUrl;
+      script.onerror = function () {
+        showFatal("Could not load the Unity loader (" + loaderUrl + ").");
+      };
       script.onload = () => {
-        const loadingContainer = document.querySelector("#unity-loading-container");
-        const progressBarFull = document.querySelector("#unity-progress-bar-full");
-
+        if (typeof createUnityInstance !== "function") {
+          showFatal("The Unity loader did not define createUnityInstance.");
+          return;
+        }
         createUnityInstance(canvas, config, (progress) => {
-          if (progress < 1) {
-            loadingContainer.style.display = "block";
-            progressBarFull.style.width = 100 * progress + "%";
-          } else {
-            loadingContainer.style.display = "none";
-          }
+          barFill.style.width = Math.round(100 * progress) + "%";
+          if (progress < 1) playButton.textContent = "Loading… " + Math.round(100 * progress) + "%";
         }).then((unityInstance) => {
-                document.querySelector("#unity-fullscreen-button").onclick = () => {
-                  unityInstance.SetFullscreen(1);
-                };
+          window.unityInstance = unityInstance;
+          barFill.style.width = "100%";
+          playButton.disabled = false;
+          playButton.textContent = "Click to play";
+          if (autostart) startPlaying();
+          else playButton.focus();
+        }).catch((message) => {
+          showFatal(message);
+        });
+      };
 
-              }).catch((message) => {
-                alert(message);
-              });
-            };
-
+      if (autostart) overlay.className = "tt-hidden";
       document.body.appendChild(script);
-
     </script>
   </body>
 </html>
