@@ -59,7 +59,7 @@
     <!-- Network + voice layer. Must load before the Unity loader: TTNet.jslib calls window.TT.
          The build script copies Assets/_Project/Web~/*.js into <build>/tt/. -->
     <script src="tt/trystero-nostr-0.26.0.min.js"></script>
-    <script src="tt/tt-net.js?v=0.1.1116.2210"></script>
+    <script src="tt/tt-net.js?v=0.1.1116.2220"></script>
 
     <script>
       var canvas = document.querySelector("#unity-canvas");
@@ -132,7 +132,7 @@
       });
 
       var buildUrl = "Build";
-      var cacheBust = "?v=" + encodeURIComponent("0.1.1116.2210");   // GitHub Pages caches for 10 minutes
+      var cacheBust = "?v=" + encodeURIComponent("0.1.1116.2220");   // GitHub Pages caches for 10 minutes
       var loaderUrl = buildUrl + "/turf-trade-web.loader.js" + cacheBust;
       var config = {
         arguments: [],
@@ -147,7 +147,7 @@
 
         companyName: "Gravity",
         productName: "Turf Trade",
-        productVersion: "0.1.1116.2210",
+        productVersion: "0.1.1116.2220",
         showBanner: unityShowBanner,
       };
 
